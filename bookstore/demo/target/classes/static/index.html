@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bookstore Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Bookstore Management</h1>
+        
+        <div class="add-form">
+            <h2>📚 Add New Book</h2>
+            <form id="addBookForm">
+                <div class="form-group">
+                    <input type="text" id="title" placeholder="Book Title" required>
+                    <input type="text" id="author" placeholder="Author Name" required>
+                    <input type="text" id="category" placeholder="Category">
+                    <input type="number" id="price" placeholder="Price ($)" step="0.01" required>
+                    <input type="number" id="stockQuantity" placeholder="Stock Quantity" required>
+                    <button type="submit">➕ Add Book</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="search-section">
+            <h2>🔍 Search Books</h2>
+            <div class="search-row">
+                <div class="search-group">
+                    <input type="text" id="searchAuthor" placeholder="Search by Author" onkeypress="if(event.key==='Enter') searchByAuthor()">
+                    <button onclick="searchByAuthor()">🔍 Search Author</button>
+                </div>
+                <div class="search-group">
+                    <input type="text" id="searchCategory" placeholder="Search by Category" onkeypress="if(event.key==='Enter') searchByCategory()">
+                    <button onclick="searchByCategory()">🔍 Search Category</button>
+                </div>
+                <div class="search-group">
+                    <button onclick="getAllBooks()" class="all-books-btn">📖 All Books</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="bookList" class="book-list"></div>
+        
+        <!-- Modal for viewing book details -->
+        <div id="bookModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <div id="bookDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/books';
+
+        document.getElementById('addBookForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const book = {
+                title: document.getElementById('title').value,
+                author: document.getElementById('author').value,
+                category: document.getElementById('category').value,
+                price: parseFloat(document.getElementById('price').value),
+                stockQuantity: parseInt(document.getElementById('stockQuantity').value)
+            };
+            
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(book)
+                });
+                if (response.ok) {
+                    alert('Book added successfully');
+                    document.getElementById('addBookForm').reset();
+                    getAllBooks();
+                }
+            } catch (error) {
+                alert('Error adding book');
+            }
+        });
+
+        async function getAllBooks() {
+            try {
+                const response = await fetch(API_BASE);
+                if (response.ok) {
+                    const books = await response.json();
+                    displayBooks(books);
+                    if (books.length === 0) {
+                        document.getElementById('bookList').innerHTML = '<p style="text-align: center; color: #666; font-size: 18px;">📚 No books available. Add some books to get started!</p>';
+                    }
+                } else {
+                    alert('Error fetching books: ' + response.status);
+                }
+            } catch (error) {
+                alert('Error fetching books: ' + error.message);
+                console.error('Error:', error);
+            }
+        }
+
+        async function searchByAuthor() {
+            const author = document.getElementById('searchAuthor').value.trim();
+            if (!author) {
+                alert('Please enter an author name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}?author=${encodeURIComponent(author)}`);
+                if (response.ok) {
+                    const books = await response.json();
+                    displayBooks(books);
+                    if (books.length === 0) {
+                        alert('No books found for this author');
+                    }
+                } else {
+                    alert('Error searching books');
+                }
+            } catch (error) {
+                alert('Error searching books: ' + error.message);
+            }
+        }
+
+        async function searchByCategory() {
+            const category = document.getElementById('searchCategory').value.trim();
+            if (!category) {
+                alert('Please enter a category');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}?category=${encodeURIComponent(category)}`);
+                if (response.ok) {
+                    const books = await response.json();
+                    displayBooks(books);
+                    if (books.length === 0) {
+                        alert('No books found in this category');
+                    }
+                } else {
+                    alert('Error searching books');
+                }
+            } catch (error) {
+                alert('Error searching books: ' + error.message);
+            }
+        }
+
+        function displayBooks(books) {
+            allBooks = books; // Store books for viewing details
+            const bookList = document.getElementById('bookList');
+            bookList.innerHTML = books.map(book => `
+                <div class="book-item">
+                    <h3>📖 ${book.title}</h3>
+                    <p>✍️ Author: ${book.author}</p>
+                    <p>🏷️ Category: ${book.category}</p>
+                    <p>💰 Price: $${book.price}</p>
+                    <p>📦 Stock: ${book.stockQuantity}</p>
+                    <div class="book-actions">
+                        <button class="view-btn" onclick="viewBook(${book.id})">👁️ View</button>
+                        <button class="update-btn" onclick="updateStock(${book.id})">📝 Update Stock</button>
+                        <button class="delete-btn" onclick="deleteBook(${book.id})">🗑️ Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function updateStock(id) {
+            const quantity = prompt('Enter new stock quantity:');
+            if (quantity === null) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/${id}/stock?quantity=${quantity}`, {
+                    method: 'PUT'
+                });
+                if (response.ok) {
+                    alert('Stock updated successfully');
+                    getAllBooks();
+                }
+            } catch (error) {
+                alert('Error updating stock');
+            }
+        }
+
+        async function deleteBook(id) {
+            if (!confirm('Are you sure you want to delete this book?')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    alert('Book deleted successfully');
+                    getAllBooks();
+                }
+            } catch (error) {
+                alert('Error deleting book');
+            }
+        }
+
+        // Add event listeners for Enter key on search inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('searchAuthor').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchByAuthor();
+                }
+            });
+            
+            document.getElementById('searchCategory').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchByCategory();
+                }
+            });
+            
+            // Load all books on page load
+            getAllBooks();
+        });
+        
+        let allBooks = []; // Store all books for viewing details
+        
+        async function viewBook(id) {
+            const book = allBooks.find(b => b.id === id);
+            if (book) {
+                document.getElementById('bookDetails').innerHTML = `
+                    <h2>📖 Book Details</h2>
+                    <div class="detail-item"><strong>ID:</strong> ${book.id}</div>
+                    <div class="detail-item"><strong>Title:</strong> ${book.title}</div>
+                    <div class="detail-item"><strong>Author:</strong> ${book.author}</div>
+                    <div class="detail-item"><strong>Category:</strong> ${book.category || 'Not specified'}</div>
+                    <div class="detail-item"><strong>Price:</strong> $${book.price}</div>
+                    <div class="detail-item"><strong>Stock Quantity:</strong> ${book.stockQuantity}</div>
+                    <div class="detail-item"><strong>Added:</strong> ${new Date().toLocaleDateString()}</div>
+                `;
+                document.getElementById('bookModal').style.display = 'block';
+            }
+        }
+        
+        function closeModal() {
+            document.getElementById('bookModal').style.display = 'none';
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('bookModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
